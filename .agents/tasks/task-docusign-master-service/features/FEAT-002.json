@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Resilience layer, DocuSign auth+API client, and normalization. Depends on FEAT-001 (config, security). Implements the retry/rate-limit engine, DocuSign JWT auth client, all four DocuSign API methods (envelopes/recipients/documents/templates), normalization structs with struct tags, and all associated unit tests using mock HTTP servers.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "1. Create internal/resilience/retry.go: RetryConfig struct (MaxAttempts int, BaseDelayMs int, MaxDelayMs int). DoWithRetry(ctx context.Context, cfg RetryConfig, fn func(ctx context.Context) (*http.Response, error)) (*http.Response, error). Retries on: net.Error (timeout/temporary), http 500/502/503/504. Does NOT retry on 400/401/403/404/409. Exponential backoff with full jitter: delay = random(0, min(MaxDelayMs, BaseDelayMs * 2^attempt)). Respects ctx.Done() between attempts. Never retries more than MaxAttempts times total.",
     "2. Create internal/resilience/rate_limiter.go: DoWithRateLimit(ctx context.Context, retryCfg RetryConfig, maxWaitSecs int, fallbackDelaySecs int, fn func(ctx context.Context) (*http.Response, error)) (*http.Response, error). Wraps DoWithRetry. On HTTP 429: parse Retry-After header (integer seconds or HTTP-date format RFC1123); sleep that duration (max maxWaitSecs); retry the call — 429 does NOT consume an attempt from retryCfg.MaxAttempts. If Retry-After absent, sleep fallbackDelaySecs.",
@@ -32,5 +32,5 @@
     "cd '/home/simon/Downloads/DocuSign Master Service' && go test ./internal/resilience/... ./internal/normalization/... -v"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 15 steps implemented. 11 tests pass (7 resilience, 4 normalization groups). parquet-go v0.24.0 added to go.mod. RawEnvelope.Subject maps to emailSubject JSON field — the struct has both Subject and EmailSubject fields; normalization uses Subject for the top-level subject and EmailSubject pointer for the raw email subject string. DocuSign API returns ResultSetSize/TotalSetSize/EndPosition as strings in JSON, so those fields are typed as string in the response structs. doRequest in DSClient refreshes the token before the retry loop (correct: GetAccessToken caches it); a token refresh on a 401 mid-flight is left for a future iteration."
 }
