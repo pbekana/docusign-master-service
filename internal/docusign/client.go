@@ -14,10 +14,17 @@ import (
 
 const maxResponseBytes = 10 * 1024 * 1024 // 10 MB
 
+// Authenticator abstracts token acquisition and account resolution.
+// *JWTAuthClient satisfies this interface, as does any test double.
+type Authenticator interface {
+	GetAccessToken(ctx context.Context) (string, error)
+	AccountInfo() (accountID, baseURI string)
+}
+
 // DSClient is a reusable HTTP client for the DocuSign eSignature REST API v2.1.
-// Use NewDSClient to construct one.
+// Use NewDSClient or NewDSClientWithAuthenticator to construct one.
 type DSClient struct {
-	auth          *JWTAuthClient
+	auth          Authenticator
 	httpClient    *http.Client
 	retryCfg      resilience.RetryConfig
 	maxWaitSecs   int
@@ -25,17 +32,16 @@ type DSClient struct {
 	semaphore     chan struct{}
 }
 
-// NewDSClient creates a DSClient from a JWTAuthClient and service config.
-func NewDSClient(auth *JWTAuthClient, cfg *config.Config) *DSClient {
+// newClient is the shared constructor.
+func newClient(auth Authenticator, cfg *config.Config) *DSClient {
 	timeout := time.Duration(cfg.DocusignRequestTimeoutSeconds) * time.Second
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
-	sem := make(chan struct{}, cfg.MaxConcurrentDocusignRequests)
-	if cfg.MaxConcurrentDocusignRequests <= 0 {
-		sem = make(chan struct{}, 5)
+	maxConcurrent := cfg.MaxConcurrentDocusignRequests
+	if maxConcurrent <= 0 {
+		maxConcurrent = 5
 	}
-
 	return &DSClient{
 		auth:       auth,
 		httpClient: &http.Client{Timeout: timeout},
@@ -46,11 +52,22 @@ func NewDSClient(auth *JWTAuthClient, cfg *config.Config) *DSClient {
 		},
 		maxWaitSecs:   cfg.RateLimitMaxWaitSeconds,
 		fallbackDelay: cfg.RateLimitFallbackDelaySeconds,
-		semaphore:     sem,
+		semaphore:     make(chan struct{}, maxConcurrent),
 	}
 }
 
-// doRequest performs an authenticated GET request against the DocuSign API,
+// NewDSClient creates a DSClient from a JWTAuthClient and service config.
+func NewDSClient(auth *JWTAuthClient, cfg *config.Config) *DSClient {
+	return newClient(auth, cfg)
+}
+
+// NewDSClientWithAuthenticator creates a DSClient using any Authenticator.
+// Useful for testing with mock authenticators.
+func NewDSClientWithAuthenticator(auth Authenticator, cfg *config.Config) *DSClient {
+	return newClient(auth, cfg)
+}
+
+// doRequest performs an authenticated HTTP request against the DocuSign API,
 // JSON-decoding the response body into out.
 func (c *DSClient) doRequest(ctx context.Context, method, url string, out interface{}) error {
 	// Acquire concurrency slot.
