@@ -39,6 +39,28 @@ func IsReadOnlyViolation(err error) bool {
 	return errors.As(err, &t)
 }
 
+// BuildSignature computes the HMAC-SHA256 signature for a request.
+// It is exported for use in tests and the sign_request_example script.
+//
+// Parameters:
+//   - method: HTTP method (e.g. "GET", "POST").
+//   - path: request path (e.g. "/api/scan/start").
+//   - timestamp: Unix timestamp as decimal string.
+//   - nonce: unique request nonce.
+//   - body: raw request body bytes.
+//   - secret: shared HMAC secret.
+//
+// Returns the hex-encoded HMAC-SHA256 signature.
+func BuildSignature(method, path, timestamp, nonce string, body []byte, secret string) string {
+	bodyHash := sha256.Sum256(body)
+	bodyHashHex := hex.EncodeToString(bodyHash[:])
+	canonical := strings.Join([]string{method, path, timestamp, nonce, bodyHashHex}, "\n")
+
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(canonical))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
 // VerifyRequest authenticates an inbound HTTP request using HMAC-SHA256.
 //
 // The canonical string is:

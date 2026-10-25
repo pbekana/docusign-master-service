@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "HTTP API layer: middleware, all handlers, router, entry point, and integration tests. Depends on FEAT-001 (security), FEAT-002 (docusign client), FEAT-003 (jobs, audit services). Wires the full Chi router with HMAC middleware, implements all 16 endpoints, and provides a full integration test that exercises every endpoint with correctly signed requests against mock services.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "1. Create internal/httpapi/middleware/recovery.go: Chi middleware. Wraps next with defer/recover. On panic: log via slog with stack trace (runtime/debug.Stack()), write 500 JSON response {\"error\":\"internal server error\"}.",
     "2. Create internal/httpapi/middleware/logging.go: Chi middleware using chi middleware.RequestID pattern. Records start time, calls next, logs method/path/status/latency/request_id/client_id (from context) at INFO level via slog after response.",
@@ -30,5 +30,5 @@
     "cd '/home/simon/Downloads/DocuSign Master Service' && go build ./..."
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Handler interfaces (JobRepo, JobSvc, WorkerEnqueuer, AuditSvc, DocuSignAuth, AuditQuerier) defined in internal/httpapi/handlers/interfaces.go so all handlers accept test doubles — concrete types satisfy these interfaces at compile time. Added CountByStatus and DeleteOldJobs methods to jobs.JobRepository. Added BuildSignature helper to security package. HealthHandler accepts nil pgxpool.Pool gracefully for tests. All 11 integration tests pass without live services."
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -296,6 +297,68 @@ func scanJobs(rows pgx.Rows) ([]Job, error) {
 		return nil, fmt.Errorf("job repository: iterating rows: %w", err)
 	}
 	return jobs, nil
+}
+
+// CountByStatus returns a map of status -> count for all jobs.
+func (r *JobRepository) CountByStatus(ctx context.Context) (map[string]int, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT status, COUNT(*) FROM jobs GROUP BY status
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("job repository: count by status: %w", err)
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int)
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, fmt.Errorf("job repository: scanning count row: %w", err)
+		}
+		counts[status] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("job repository: iterating count rows: %w", err)
+	}
+	return counts, nil
+}
+
+// DeleteOldJobs removes jobs older than olderThanDays with an optional status filter.
+// Returns the number of deleted jobs.
+func (r *JobRepository) DeleteOldJobs(ctx context.Context, olderThanDays int, statuses []string) (int, error) {
+	if olderThanDays <= 0 {
+		olderThanDays = 30
+	}
+
+	var tag interface{ RowsAffected() int64 }
+	var err error
+
+	if len(statuses) > 0 {
+		// Build $N placeholders for the status list.
+		args := []interface{}{olderThanDays}
+		placeholders := make([]string, len(statuses))
+		for i, s := range statuses {
+			args = append(args, s)
+			placeholders[i] = fmt.Sprintf("$%d", i+2)
+		}
+		query := fmt.Sprintf(`
+			DELETE FROM jobs
+			WHERE created_at < NOW() - ($1 || ' days')::interval
+			  AND status IN (%s)
+		`, strings.Join(placeholders, ","))
+		tag, err = r.pool.Exec(ctx, query, args...)
+	} else {
+		tag, err = r.pool.Exec(ctx, `
+			DELETE FROM jobs
+			WHERE created_at < NOW() - ($1 || ' days')::interval
+		`, olderThanDays)
+	}
+
+	if err != nil {
+		return 0, fmt.Errorf("job repository: delete old jobs: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
 }
 
 // now is a package-level alias used in tests to inject deterministic time.
