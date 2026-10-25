@@ -1,0 +1,7 @@
+{
+  "task_id": "task-docusign-master-service",
+  "task_description": "Build a complete production DocuSign Master Service in Go: extracts data from DocuSign eSignature REST API v2.1, normalizes it, stores in MinIO as Parquet/JSON. Controlled via HMAC-signed HTTP API. Includes PostgreSQL persistence, job worker pool, resilience layer, full test suite, and Docker setup.",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
+  "blocked_reason": null
+}

@@ -1,0 +1,24 @@
+{
+  "id": "FEAT-005",
+  "type": "chore",
+  "description": "Docker setup and documentation. Independent of the code FEATs in terms of compilation, but depends on FEAT-004 producing the final binary. Creates the multi-stage Dockerfile, docker-compose.yml with postgres+minio, README.md with full setup guide, and DESIGN.md with architecture documentation.",
+  "status": "pending",
+  "steps": [
+    "1. Create Dockerfile: multi-stage build.\n   Stage 1 (builder): FROM golang:1.26-alpine AS builder. Set WORKDIR /app. Copy go.mod go.sum, run go mod download. Copy . ., run CGO_ENABLED=0 GOOS=linux go build -ldflags='-w -s' -o /docusign-ms ./cmd/server/.\n   Stage 2 (runtime): FROM alpine:3.21. RUN apk add --no-cache ca-certificates tzdata. RUN adduser -D -g '' appuser. COPY --from=builder /docusign-ms /usr/local/bin/docusign-ms. USER appuser. EXPOSE 8080. ENTRYPOINT [\"/usr/local/bin/docusign-ms\"].",
+    "2. Create docker-compose.yml: version '3.9'.\n   Service 'postgres': image postgres:16-alpine, env POSTGRES_DB/USER/PASSWORD, healthcheck (pg_isready), volumes for data persistence, port 5432:5432.\n   Service 'minio': image minio/minio:latest, command 'server /data --console-address :9001', env MINIO_ROOT_USER/PASSWORD, healthcheck (curl -f http://localhost:9000/minio/health/live), port 9000:9000 and 9001:9001, volumes for data.\n   Service 'minio-init': image minio/mc:latest, depends_on minio healthy, entrypoint sh -c 'mc alias set myminio http://minio:9000 ... && mc mb --ignore-existing myminio/docusign', restart on-failure.\n   Service 'app': build context ., env_file .env, depends_on postgres healthy and minio healthy, ports 8080:8080, restart unless-stopped.",
+    "3. Create README.md with sections:\n   ## Overview — what the service does, high-level architecture.\n   ## Prerequisites — Go 1.26, Docker, Docker Compose, DocuSign developer account.\n   ## DocuSign Sandbox Setup — step-by-step: (1) create integration key in Apps and Keys, (2) enable JWT Grant, (3) generate RSA keypair (openssl genrsa -out private.pem 2048 && openssl rsa -in private.pem -pubout -out public.pem), (4) upload public.pem to integration key, (5) grant user consent by visiting https://{auth_server}/oauth/auth?response_type=code&scope=signature%20impersonation&client_id={key}&redirect_uri=https://example.com, (6) copy private.pem to a secure path and set DOCUSIGN_PRIVATE_KEY_PATH.\n   ## Configuration — full table of all env vars, their defaults, and descriptions.\n   ## Quickstart — cp .env.example .env (fill in values), docker-compose up -d.\n   ## API Reference — table of all endpoints with method, path, auth requirement, brief description.\n   ## HMAC Signing — how to sign requests, canonical string format, example using scripts/sign_request_example.go.\n   ## Running Tests — go test ./...",
+    "4. Create DESIGN.md with sections:\n   ## Architecture — ASCII diagram of components (HTTP API → Jobs Worker → DocuSign API; Jobs Worker → PostgreSQL; Jobs Worker → MinIO).\n   ## Authentication Flow — DocuSign JWT Grant sequence: load RSA key → build JWT → POST /oauth/token → GET /oauth/userinfo → cache token.\n   ## Job Lifecycle — state machine diagram (ASCII): PENDING → FETCHING_ENVELOPES → FETCHING_DETAILS → NORMALIZING → UPLOADING_TO_MINIO → COMPLETED; error paths to FAILED; cancellation to CANCELLED; heartbeat timeout to CRASHED.\n   ## HMAC Signing Protocol — canonical string construction, two client roles, nonce replay prevention.\n   ## Storage Conventions — local output paths, MinIO object key template, Parquet schema notes.\n   ## Resilience Strategy — retry logic, 429 handling, rate limit budget.\n   ## Extension Points — how to add new DocuSign object types, how to swap storage backends."
+  ],
+  "acceptance_criteria": [
+    "docker build -t docusign-ms . succeeds (image builds from multi-stage Dockerfile)",
+    "README.md is non-empty and contains DocuSign sandbox setup instructions",
+    "DESIGN.md is non-empty and contains the job lifecycle section",
+    "docker-compose.yml contains all four services: postgres, minio, minio-init, app"
+  ],
+  "verification": [
+    "cd '/home/simon/Downloads/DocuSign Master Service' && docker build -t docusign-ms . 2>&1 | tail -5",
+    "grep -c 'DocuSign' '/home/simon/Downloads/DocuSign Master Service/README.md'"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

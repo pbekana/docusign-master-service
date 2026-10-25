@@ -1,0 +1,10 @@
+# Environment and secrets — never commit these
+.env
+*.pem
+*.key
+
+# Build output
+/tmp/
+/bin/
+coverage.out
+docusign-master-service

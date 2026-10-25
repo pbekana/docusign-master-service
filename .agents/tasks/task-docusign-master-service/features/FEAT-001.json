@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Project scaffold, configuration, database layer, and security primitives. This is the foundation all other FEATs depend on. Creates go.mod with all pinned dependencies, the Config struct with full env-var validation, the pgxpool database wrapper, all three SQL migrations and the migration runner, and the HMAC+nonce security package with full test coverage.",
+  "status": "completed",
+  "steps": [
+    "1. Create go.mod with module github.com/your-org/docusign-master-service, go 1.26, and ALL direct dependencies pinned: github.com/go-chi/chi/v5 v5.2.1, github.com/jackc/pgx/v5 v5.7.2, github.com/minio/minio-go/v7 v7.0.82, github.com/parquet-go/parquet-go v0.24.0, github.com/golang-jwt/jwt/v5 v5.2.2, github.com/google/uuid v1.6.0. Then run 'go mod tidy' to populate go.sum.",
+    "2. Create .gitignore: ignore .env, *.pem, *.key, /tmp/, /bin/, coverage.out, docusign-master-service binary.",
+    "3. Create .env.example with all env vars from the spec, with placeholder values and inline comments explaining each one.",
+    "4. Create internal/config/config.go: Config struct with all fields from the spec (APP_ENV, PORT, LOG_LEVEL, DATABASE_URL, DB_MAX_CONNS, DB_MIN_CONNS, DOCUSIGN_*, RATE_LIMIT_*, RETRY_*, MINIO_*, HMAC_*, MAX_CONCURRENT_JOBS, MAX_CONCURRENT_DOCUSIGN_REQUESTS, HEARTBEAT_INTERVAL_SECONDS, CRASH_TIMEOUT_MINUTES, LOCAL_OUTPUT_DIR). LoadConfig() reads env vars, applies defaults (PORT=8080, LOG_LEVEL=info, DB_MAX_CONNS=10, DB_MIN_CONNS=2, DOCUSIGN_REQUEST_TIMEOUT_SECONDS=30, DOCUSIGN_PAGE_SIZE=100, RATE_LIMIT_MAX_WAIT_SECONDS=300, RATE_LIMIT_FALLBACK_DELAY_SECONDS=60, RETRY_MAX_ATTEMPTS=5, RETRY_BASE_DELAY_MS=500, RETRY_MAX_DELAY_MS=30000, HMAC_TIMESTAMP_TOLERANCE_SECONDS=300, MAX_CONCURRENT_JOBS=3, MAX_CONCURRENT_DOCUSIGN_REQUESTS=5, HEARTBEAT_INTERVAL_SECONDS=30, CRASH_TIMEOUT_MINUTES=10, LOCAL_OUTPUT_DIR=/tmp/docusign-output). Returns error listing all missing required vars (DATABASE_URL, DOCUSIGN_INTEGRATION_KEY, DOCUSIGN_USER_ID, DOCUSIGN_PRIVATE_KEY_PATH, DOCUSIGN_AUTH_SERVER, MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, HMAC_SECRET_KEY_CORE).",
+    "5. Create internal/config/config_test.go: test LoadConfig with all required vars set (happy path), with a missing required var (error returned), and verify defaults are applied.",
+    "6. Create internal/database/db.go: NewPool(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) — builds pgxpool.Config from DATABASE_URL, sets MaxConns and MinConns, calls pgxpool.NewWithConfig. Export Pool type alias. Add Ping(ctx, pool) helper.",
+    "7. Create migrations/001_create_jobs.sql — exact SQL from the spec (jobs + job_checkpoints tables with all indexes).",
+    "8. Create migrations/002_create_audit_logs.sql — exact SQL from the spec.",
+    "9. Create migrations/003_create_failed_calls.sql — exact SQL from the spec.",
+    "10. Create internal/database/migrate.go: RunMigrations(ctx context.Context, pool *pgxpool.Pool, migrationsDir string) error — reads .sql files from migrationsDir in lexicographic order, executes each in a transaction. Idempotent because each SQL file uses IF NOT EXISTS. Log each file name (without sensitive data) at INFO level.",
+    "11. Create internal/security/nonce.go: NonceStore struct with sync.Map, NewNonceStore(ctx context.Context) *NonceStore — starts background goroutine that purges entries older than 2x tolerance every 60 seconds (stops when ctx is cancelled). Use(nonce string, expiry time.Time) bool — returns true if nonce is fresh and not seen before, stores it; returns false if already seen.",
+    "12. Create internal/security/hmac.go: VerifyRequest(r *http.Request, body []byte, secrets map[string]string, toleranceSecs int64, nonces *NonceStore) (clientID string, err error). Builds canonical string METHOD\\nPATH\\nTIMESTAMP\\nNONCE\\nSHA256HEX(BODY). Computes expected HMAC-SHA256 in hex. Compares with hmac.Equal (constant-time). Rejects if |now-timestamp| > tolerance. Checks nonce replay. Returns error for unknown client. ReadOnlyViolation error type for engineer client on non-GET methods.",
+    "13. Create internal/security/encryption.go: Encrypt(key []byte, plaintext []byte) ([]byte, error) and Decrypt(key []byte, ciphertext []byte) ([]byte, error) using AES-256-GCM. Random nonce prepended to ciphertext.",
+    "14. Create internal/security/hmac_test.go: table-driven tests covering: (a) valid coordinator signature on POST, (b) invalid signature rejected, (c) expired timestamp rejected, (d) nonce replay rejected on second use, (e) unknown client ID rejected, (f) engineer client rejected on POST (read-only violation). Use httptest.NewRequest for each."
+  ],
+  "acceptance_criteria": [
+    "go mod tidy completes without errors and go.sum is populated",
+    "go build ./... compiles all packages without errors",
+    "go test ./internal/config/... passes all tests",
+    "go test ./internal/security/... passes all 6 HMAC test cases",
+    "go build ./internal/database/... compiles without errors"
+  ],
+  "verification": [
+    "cd '/home/simon/Downloads/DocuSign Master Service' && go mod tidy",
+    "cd '/home/simon/Downloads/DocuSign Master Service' && go build ./...",
+    "cd '/home/simon/Downloads/DocuSign Master Service' && go test ./internal/config/... ./internal/security/... -v"
+  ],
+  "blocked_reason": null,
+  "findings": "All 14 steps implemented. go mod tidy resolved all deps (pgx v5.7.2, chi v5.2.1, jwt v5.2.2, uuid v1.6.0, minio v7.0.82, parquet-go v0.24.0). go build ./... clean. 3 config tests pass, 6 HMAC security tests pass. parquet-go and minio-go pulled in significant indirect deps but caused no build issues. Go version confirmed as 1.26.8."
+}
