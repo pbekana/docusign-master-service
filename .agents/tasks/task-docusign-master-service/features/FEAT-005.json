@@ -2,7 +2,7 @@
   "id": "FEAT-005",
   "type": "chore",
   "description": "Docker setup and documentation. Independent of the code FEATs in terms of compilation, but depends on FEAT-004 producing the final binary. Creates the multi-stage Dockerfile, docker-compose.yml with postgres+minio, README.md with full setup guide, and DESIGN.md with architecture documentation.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "1. Create Dockerfile: multi-stage build.\n   Stage 1 (builder): FROM golang:1.26-alpine AS builder. Set WORKDIR /app. Copy go.mod go.sum, run go mod download. Copy . ., run CGO_ENABLED=0 GOOS=linux go build -ldflags='-w -s' -o /docusign-ms ./cmd/server/.\n   Stage 2 (runtime): FROM alpine:3.21. RUN apk add --no-cache ca-certificates tzdata. RUN adduser -D -g '' appuser. COPY --from=builder /docusign-ms /usr/local/bin/docusign-ms. USER appuser. EXPOSE 8080. ENTRYPOINT [\"/usr/local/bin/docusign-ms\"].",
     "2. Create docker-compose.yml: version '3.9'.\n   Service 'postgres': image postgres:16-alpine, env POSTGRES_DB/USER/PASSWORD, healthcheck (pg_isready), volumes for data persistence, port 5432:5432.\n   Service 'minio': image minio/minio:latest, command 'server /data --console-address :9001', env MINIO_ROOT_USER/PASSWORD, healthcheck (curl -f http://localhost:9000/minio/health/live), port 9000:9000 and 9001:9001, volumes for data.\n   Service 'minio-init': image minio/mc:latest, depends_on minio healthy, entrypoint sh -c 'mc alias set myminio http://minio:9000 ... && mc mb --ignore-existing myminio/docusign', restart on-failure.\n   Service 'app': build context ., env_file .env, depends_on postgres healthy and minio healthy, ports 8080:8080, restart unless-stopped.",
@@ -20,5 +20,5 @@
     "grep -c 'DocuSign' '/home/simon/Downloads/DocuSign Master Service/README.md'"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Docker socket is not accessible without sudo in the sandbox environment (process is not in docker group), so `docker build` could not be executed directly. go build ./... and go test ./... both pass cleanly. All four files were created: Dockerfile (golang:1.26-alpine builder / alpine:3.21 runtime, non-root appuser), docker-compose.yml (postgres, minio, minio-init, app — all four services), README.md (25 DocuSign mentions, full sandbox setup guide with JWT key upload and consent URL), DESIGN.md (job lifecycle state machine, HMAC protocol, architecture diagram). Migration files are copied into the image via COPY --from=builder /app/migrations /migrations so startup migrations work in the container."
 }
