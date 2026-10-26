@@ -1,0 +1,659 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "DocuSign Master Service API",
+    "description": "Production-ready Go service for extracting and normalizing DocuSign envelope data with HMAC authentication, rate limit handling, and MinIO storage.",
+    "version": "0.1.0",
+    "contact": {
+      "name": "API Support",
+      "url": "https://github.com/pbekana/docusign-master-service"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080/api",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Check if the service is running and healthy",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stats": {
+      "get": {
+        "summary": "Service statistics",
+        "description": "Get basic service statistics",
+        "responses": {
+          "200": {
+            "description": "Statistics data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/validate-credentials": {
+      "post": {
+        "summary": "Validate DocuSign credentials",
+        "description": "Validate DocuSign credentials without creating a job",
+        "security": [{"hmacAuth": []}],
+        "responses": {
+          "200": {
+            "description": "Credentials are valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialValidationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid credentials"
+          },
+          "401": {
+            "description": "HMAC authentication failed"
+          }
+        }
+      }
+    },
+    "/scan/start": {
+      "post": {
+        "summary": "Start a new data extraction job",
+        "description": "Start extracting DocuSign data for a specific account and date range",
+        "security": [{"hmacAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartJobRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Job accepted and started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobCreatedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "HMAC authentication failed"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/scan/list": {
+      "get": {
+        "summary": "List all jobs",
+        "description": "Get paginated list of extraction jobs with optional filtering",
+        "security": [{"hmacAuth": []}],
+        "parameters": [
+          {
+            "name": "organization_id",
+            "in": "query",
+            "description": "Filter by organization ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by job status",
+            "schema": {
+              "type": "string",
+              "enum": ["PENDING", "FETCHING_ENVELOPES", "FETCHING_DETAILS", "NORMALIZING", "UPLOADING_TO_MINIO", "COMPLETED", "FAILED", "CANCELLED", "CRASHED"]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-indexed)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "Items per page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed"
+          }
+        }
+      }
+    },
+    "/scan/{scan_id}/status": {
+      "get": {
+        "summary": "Get job status",
+        "description": "Get detailed status and progress of a specific job",
+        "security": [{"hmacAuth": []}],
+        "parameters": [
+          {
+            "name": "scan_id",
+            "in": "path",
+            "required": true,
+            "description": "Job ID (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed"
+          },
+          "404": {
+            "description": "Job not found"
+          }
+        }
+      }
+    },
+    "/scan/{scan_id}/cancel": {
+      "post": {
+        "summary": "Cancel a job",
+        "description": "Cancel a running or pending job",
+        "security": [{"hmacAuth": []}],
+        "parameters": [
+          {
+            "name": "scan_id",
+            "in": "path",
+            "required": true,
+            "description": "Job ID (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BasicResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed"
+          },
+          "404": {
+            "description": "Job not found"
+          },
+          "409": {
+            "description": "Job cannot be cancelled in its current state"
+          }
+        }
+      }
+    },
+    "/normalization/supported-objects": {
+      "get": {
+        "summary": "Get supported DocuSign objects",
+        "description": "List all DocuSign record types that can be normalized",
+        "security": [{"hmacAuth": []}],
+        "responses": {
+          "200": {
+            "description": "List of supported objects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportedObjectsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed"
+          }
+        }
+      }
+    },
+    "/audit/logs": {
+      "get": {
+        "summary": "Query audit logs",
+        "description": "Get paginated audit logs with filtering",
+        "security": [{"hmacAuth": []}],
+        "parameters": [
+          {
+            "name": "organization_id",
+            "in": "query",
+            "description": "Filter by organization ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "event_type",
+            "in": "query",
+            "description": "Filter by event type",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "description": "Filter by outcome",
+            "schema": {
+              "type": "string",
+              "enum": ["SUCCESS", "FAILURE", "WARNING"]
+            }
+          },
+          {
+            "name": "from_date",
+            "in": "query",
+            "description": "Filter by start date (ISO 8601)",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to_date",
+            "in": "query",
+            "description": "Filter by end date (ISO 8601)",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-indexed)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "Items per page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "HMAC authentication failed"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "hmacAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-DS-Signature",
+        "description": "HMAC-SHA256 signature of the canonical string"
+      }
+    },
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          },
+          "uptime_seconds": {
+            "type": "number",
+            "example": 1234.56
+          },
+          "version": {
+            "type": "string",
+            "example": "0.1.0"
+          }
+        }
+      },
+      "CredentialValidationResponse": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "example": true
+          },
+          "account_id": {
+            "type": "string",
+            "example": "51343192"
+          },
+          "base_uri": {
+            "type": "string",
+            "example": "https://demo.docusign.net/restapi"
+          },
+          "user_name": {
+            "type": "string",
+            "example": "John Doe"
+          }
+        }
+      },
+      "StartJobRequest": {
+        "type": "object",
+        "required": ["organization_id", "date_range_from", "date_range_to"],
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "description": "Organization identifier",
+            "example": "org-12345"
+          },
+          "date_range_from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start date for envelope filtering",
+            "example": "2026-01-01T00:00:00Z"
+          },
+          "date_range_to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End date for envelope filtering",
+            "example": "2026-10-26T23:59:59Z"
+          },
+          "output_format": {
+            "type": "string",
+            "enum": ["parquet", "json"],
+            "default": "parquet",
+            "description": "Output format for normalized data"
+          },
+          "upload_to_minio": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether to upload to MinIO"
+          }
+        }
+      },
+      "JobCreatedResponse": {
+        "type": "object",
+        "properties": {
+          "scan_id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+          },
+          "status": {
+            "type": "string",
+            "example": "PENDING"
+          },
+          "message": {
+            "type": "string",
+            "example": "Job accepted and queued"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-26T20:23:26Z"
+          }
+        }
+      },
+      "JobListResponse": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobSummary"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationInfo"
+          }
+        }
+      },
+      "JobStatusResponse": {
+        "type": "object",
+        "properties": {
+          "scan_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "FETCHING_ENVELOPES", "FETCHING_DETAILS", "NORMALIZING", "UPLOADING_TO_MINIO", "COMPLETED", "FAILED", "CANCELLED", "CRASHED"]
+          },
+          "stage": {
+            "type": "string"
+          },
+          "organization_id": {
+            "type": "string"
+          },
+          "envelopes_fetched": {
+            "type": "integer"
+          },
+          "recipients_fetched": {
+            "type": "integer"
+          },
+          "documents_fetched": {
+            "type": "integer"
+          },
+          "templates_fetched": {
+            "type": "integer"
+          },
+          "progress_percentage": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_heartbeat": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error_message": {
+            "type": "string"
+          }
+        }
+      },
+      "BasicResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SupportedObjectsResponse": {
+        "type": "object",
+        "properties": {
+          "objects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "example": "envelopes"
+                },
+                "description": {
+                  "type": "string",
+                  "example": "Signing transactions with status, dates, subjects"
+                },
+                "output_tables": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "AuditLogResponse": {
+        "type": "object",
+        "properties": {
+          "logs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditLog"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationInfo"
+          }
+        }
+      },
+      "JobSummary": {
+        "type": "object",
+        "properties": {
+          "scan_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organization_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "envelopes_fetched": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuditLog": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "organization_id": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PaginationInfo": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "total_pages": {
+            "type": "integer"
+          },
+          "has_next": {
+            "type": "boolean"
+          },
+          "has_prev": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

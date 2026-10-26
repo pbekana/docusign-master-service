@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DocuSign Master Service API Documentation</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 30px; }
+        .endpoint { background: #f8f9fa; border-left: 4px solid #3498db; padding: 15px; margin: 15px 0; border-radius: 4px; }
+        .method { display: inline-block; padding: 5px 10px; border-radius: 4px; color: white; font-weight: bold; margin-right: 10px; }
+        .get { background: #2ecc71; }
+        .post { background: #3498db; }
+        .delete { background: #e74c3c; }
+        .path { font-family: monospace; font-size: 16px; color: #2c3e50; }
+        .desc { color: #7f8c8d; margin: 5px 0 10px 0; }
+        .auth { background: #f39c12; color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; }
+        .public { background: #27ae60; color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: 600; }
+        tr:hover { background: #f8f9fa; }
+        .status { padding: 15px; background: #ecf0f1; border-radius: 5px; margin: 20px 0; }
+        .status h3 { margin-top: 0; }
+        .success { color: #27ae60; }
+        .error { color: #e74c3c; }
+        code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 DocuSign Master Service API v0.1.0</h1>
+        
+        <div class="status">
+            <h3>🟢 Service Status: RUNNING</h3>
+            <p><strong>Base URL:</strong> <code>http://localhost:8080/api</code></p>
+            <p><strong>Health Check:</strong> <a href="/api/health" target="_blank">/api/health</a> ✅</p>
+            <p><strong>Service Uptime:</strong> <span id="uptime">Loading...</span></p>
+        </div>
+
+        <h2>📋 Available Endpoints</h2>
+        
+        <h3>🔓 Public Endpoints (No Authentication)</h3>
+        <div class="endpoint">
+            <span class="method get">GET</span> <span class="path">/api/health</span>
+            <div class="desc">Health check endpoint - verify service is running</div>
+            <span class="public">PUBLIC</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <span class="path">/api/stats</span>
+            <div class="desc">Service statistics and metrics</div>
+            <span class="public">PUBLIC</span>
+        </div>
+
+        <h3>🔐 Protected Endpoints (HMAC Authentication Required)</h3>
+        
+        <div class="endpoint">
+            <span class="method post">POST</span> <span class="path">/api/validate-credentials</span>
+            <div class="desc">Validate DocuSign credentials without creating a job</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method post">POST</span> <span class="path">/api/scan/start</span>
+            <div class="desc">Start a new data extraction job (returns 202 with job ID)</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <span class="path">/api/scan/list</span>
+            <div class="desc">List all jobs with pagination and filtering</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <span class="path">/api/scan/statistics</span>
+            <div class="desc">Get job statistics aggregated by status</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <span class="path">/api/scan/{scan_id}/status</span>
+            <div class="desc">Get detailed status of a specific job</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method post">POST</span> <span class="path">/api/scan/{scan_id}/cancel</span>
+            <div class="desc">Cancel a running or pending job</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method post">POST</span> <span class="path">/api/scan/{scan_id}/resume</span>
+            <div class="desc">Resume a failed or cancelled job</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method delete">DELETE</span> <span class="path">/api/scan/{scan_id}/remove</span>
+            <div class="desc">Remove a job and its associated data</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <span class="path">/api/normalization/supported-objects</span>
+            <div class="desc">Get supported DocuSign object types</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method post">POST</span> <span class="path">/api/normalization/{scan_id}/normalize</span>
+            <div class="desc">Trigger normalization for a completed job</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <span class="path">/api/normalization/{scan_id}/tables</span>
+            <div class="desc">List normalized table files for a job</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method post">POST</span> <span class="path">/api/maintenance/cleanup</span>
+            <div class="desc">Clean up old jobs and artifacts</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method post">POST</span> <span class="path">/api/maintenance/detect-crashed</span>
+            <div class="desc">Detect and mark crashed jobs</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <span class="path">/api/audit/logs</span>
+            <div class="desc">Query audit logs with filtering</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <span class="path">/api/audit/stats</span>
+            <div class="desc">Get audit statistics</div>
+            <span class="auth">HMAC REQUIRED</span>
+        </div>
+
+        <h2>🔑 Authentication</h2>
+        <p>Protected endpoints require HMAC-SHA256 authentication with these headers:</p>
+        <table>
+            <tr><th>Header</th><th>Description</th><th>Example</th></tr>
+            <tr><td><code>X-DS-Client-ID</code></td><td>Client identifier</td><td><code>coordinator</code></td></tr>
+            <tr><td><code>X-DS-Timestamp</code></td><td>Unix timestamp (seconds)</td><td><code>1737830400</code></td></tr>
+            <tr><td><code>X-DS-Nonce</code></td><td>Unique request identifier</td><td><code>550e8400-e29b-41d4-a716-446655440000</code></td></tr>
+            <tr><td><code>X-DS-Signature</code></td><td>HMAC-SHA256 signature</td><td><code>a1b2c3d4...</code></td></tr>
+        </table>
+        
+        <p><strong>Canonical string format:</strong></p>
+        <pre><code>METHOD
+PATH
+TIMESTAMP
+NONCE
+SHA256(BODY)</code></pre>
+        
+        <p>Example signing code: <code>scripts/sign_request_example.go</code></p>
+
+        <h2>🎯 Quick Start Examples</h2>
+        
+        <h3>1. Health Check</h3>
+        <pre><code>curl http://localhost:8080/api/health</code></pre>
+        
+        <h3>2. List Jobs (with HMAC example)</h3>
+        <pre><code># Generate signature first using the script
+go run scripts/sign_request_example.go
+
+# Then use the generated headers
+curl -H "X-DS-Client-ID: coordinator" \
+     -H "X-DS-Timestamp: 1737830400" \
+     -H "X-DS-Nonce: $(uuidgen)" \
+     -H "X-DS-Signature: generated-signature" \
+     http://localhost:8080/api/scan/list</code></pre>
+
+        <h2>🔧 Infrastructure</h2>
+        <table>
+            <tr><th>Service</th><th>URL</th><th>Credentials</th></tr>
+            <tr><td>API Service</td><td><a href="http://localhost:8080" target="_blank">http://localhost:8080</a></td><td>HMAC Authentication</td></tr>
+            <tr><td>MinIO (Storage)</td><td><a href="http://localhost:9001" target="_blank">http://localhost:9001</a></td><td><code>minioadmin/minioadmin</code></td></tr>
+            <tr><td>PostgreSQL</td><td><code>localhost:5433</code></td><td><code>docusign/secret</code></td></tr>
+        </table>
+
+        <h2>📞 Support</h2>
+        <p>Repository: <a href="https://github.com/pbekana/docusign-master-service" target="_blank">https://github.com/pbekana/docusign-master-service</a></p>
+        <p>For issues: Check logs with <code>docker compose -f docker-compose-fixed.yml logs app</code></p>
+    </div>
+
+    <script>
+        // Fetch and display uptime
+        fetch('/api/health')
+            .then(response => response.json())
+            .then(data => {
+                const uptime = Math.floor(data.uptime_seconds);
+                const hours = Math.floor(uptime / 3600);
+                const minutes = Math.floor((uptime % 3600) / 60);
+                const seconds = uptime % 60;
+                document.getElementById('uptime').textContent = 
+                    `${hours}h ${minutes}m ${seconds}s`;
+            })
+            .catch(() => {
+                document.getElementById('uptime').textContent = 'Unknown';
+            });
+    </script>
+</body>
+</html>
