@@ -127,8 +127,9 @@ func main() {
 	normH := handlers.NewNormalizationHandler(jobSvc, jobRepo, cfg.LocalOutputDir)
 	maintH := handlers.NewMaintenanceHandler(jobRepo, workerPool, cfg.CrashTimeoutMinutes)
 	auditH := handlers.NewAuditHandler(auditSvc, auditRepo)
+	swaggerH := handlers.NewSwaggerHandler()
 
-	router := httpapi.NewRouter(cfg, nonces, auditSvc, healthH, credH, scanH, normH, maintH, auditH)
+	router := httpapi.NewRouter(cfg, nonces, auditSvc, healthH, credH, scanH, normH, maintH, auditH, swaggerH)
 
 	// --- HTTP server ---
 	srv := &http.Server{

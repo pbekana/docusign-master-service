@@ -15,7 +15,7 @@ import (
 
 // NewRouter wires the full Chi router with all middleware and routes.
 //
-// Public endpoints (/api/health, /api/stats) are registered outside the HMAC
+// Public endpoints (/api/health, /api/stats, /api/swagger, etc.) are registered outside the HMAC
 // group and require no authentication. All other routes are inside the HMAC
 // group and require valid signed requests.
 func NewRouter(
@@ -28,6 +28,7 @@ func NewRouter(
 	normH *handlers.NormalizationHandler,
 	maintH *handlers.MaintenanceHandler,
 	auditH *handlers.AuditHandler,
+	swaggerH *handlers.SwaggerHandler,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -39,6 +40,10 @@ func NewRouter(
 	// Public endpoints — no HMAC required.
 	r.Get("/api/health", healthH.GetHealth)
 	r.Get("/api/stats", healthH.GetStats)
+	r.Get("/api/swagger", swaggerH.GetSwaggerUI)
+	r.Get("/api/swagger.json", swaggerH.GetSwaggerJSON)
+	r.Get("/api/routes", swaggerH.GetRoutes)
+	r.Get("/api/docs", swaggerH.GetAPIDocs)
 
 	// HMAC-protected group.
 	r.Group(func(r chi.Router) {
